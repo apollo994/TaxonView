@@ -12,7 +12,7 @@ from .aggregate import counts_for_clade, open_db
 from .render import render
 from .taxonomy import get_name, get_rank, resolve_lineage
 
-DEFAULT_RANKS = ["species", "genus", "family", "order", "class"]
+DEFAULT_RANKS = ["species", "genus", "family", "order", "class", "phylum"]
 
 
 def _autodetect_db() -> str | None:

@@ -2,7 +2,7 @@
 
 Visualise the genomic resources available across the taxonomic hierarchy of a focus species.
 
-Given an NCBI species taxid, TaxonView walks the lineage (species → genus → family → order → class) and, for each rank, asks the [euka_survey](https://github.com/Cobos-Bioinfo/euka_survey) database three questions:
+Given an NCBI species taxid, TaxonView walks the lineage (species → genus → family → order → class → phylum) and, for each rank, asks the [euka_survey](https://github.com/Cobos-Bioinfo/euka_survey) database three questions:
 
 - How many named species live in this clade?
 - How many of them have at least one genome assembly?
@@ -62,7 +62,7 @@ Open the resulting HTML in any browser. Hover any ring for full counts.
 | `--db PATH` | auto-detect sibling `euka_survey/eukaryote_taxid_features_*.db` | path to euka_survey SQLite DB |
 | `-o, --out PATH` | `taxonview_<taxid>.html` | output HTML path |
 | `--scale {log,linear}` | `log` | radius scaling for named-species count |
-| `--ranks RANKS` | `species,genus,family,order,class` | comma-separated ranks, innermost first |
+| `--ranks RANKS` | `species,genus,family,order,class,phylum` | comma-separated ranks, innermost first |
 
 The input taxid must have rank `species` — non-species inputs error out.
 
