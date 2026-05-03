@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ title }}</title>
+<style>
+  body { font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+         margin: 0; padding: 24px; color: #222; background: #fafafa; }
+  h1 { font-size: 18px; font-weight: 600; margin: 0 0 4px 0; }
+  .sub { color: #666; margin: 0 0 16px 0; font-size: 13px; }
+  .legend { display: flex; gap: 18px; align-items: center; margin: 8px 0 16px 0;
+            font-size: 12px; color: #444; flex-wrap: wrap; }
+  .legend .swatch { display: inline-block; width: 14px; height: 14px;
+                    margin-right: 6px; vertical-align: middle; border-radius: 2px; }
+  #viz { display: block; }
+  .ring-bare { fill: none; stroke: #d0d0d0; stroke-width: 1.5; }
+  .ring-asm { fill: #74a9cf; opacity: 0.85; stroke: none; }
+  .ring-ann { fill: #045a8d; opacity: 0.95; stroke: none; }
+  .ring-hit { fill: transparent; stroke: transparent; cursor: pointer; }
+  .ring-hit:hover ~ .ring-asm,
+  .ring-hover .ring-asm { opacity: 1; }
+  .label { font-size: 11px; fill: #333; }
+  .axis text { font-size: 10px; fill: #555; }
+  .axis path, .axis line { stroke: #aaa; }
+  .tooltip { position: absolute; pointer-events: none;
+             background: rgba(255,255,255,0.97); border: 1px solid #ccc;
+             border-radius: 4px; padding: 8px 10px; font-size: 12px;
+             box-shadow: 0 2px 6px rgba(0,0,0,0.08); display: none;
+             max-width: 280px; }
+  .tooltip b { color: #045a8d; }
+  .tooltip dl { margin: 4px 0 0 0; display: grid;
+                grid-template-columns: auto auto; gap: 2px 12px; }
+  .tooltip dt { color: #666; }
+  .tooltip dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+
+<h1>{{ title }}</h1>
+<p class="sub">Concentric circles, innermost = species, outermost = class.
+Circle size is proportional to number of named species in the taxon.
+Light wedge = species with at least one assembly; dark sub-arc = species with at least one annotation.</p>
+
+<div class="legend">
+  <span><span class="swatch" style="background:#74a9cf"></span>species with assembly</span>
+  <span><span class="swatch" style="background:#045a8d"></span>species with annotation</span>
+  <span><span class="swatch" style="background:transparent;border:1.5px solid #d0d0d0"></span>no assembly</span>
+</div>
+
+<svg id="viz" width="780" height="780"></svg>
+<div class="tooltip" id="tip"></div>
+
+<script type="application/json" id="data">{{ payload_json | safe }}</script>
+<script>{{ d3_source | safe }}</script>
+<script>
+(function() {
+  const data = JSON.parse(document.getElementById("data").textContent);
+  const rings = data.rings; // innermost first
+  const W = 780, H = 780;
+  const cx = W / 2, cy = H / 2 - 20;
+  const rMin = 24, rMax = 320;
+
+  const svg = d3.select("#viz");
+  const tip = d3.select("#tip");
+
+  const maxSpecies = d3.max(rings, d => d.named_species) || 1;
+  const minSpecies = d3.min(rings.filter(d => d.named_species > 0), d => d.named_species) || 1;
+
+  let radiusScale;
+  if (data.scale === "linear") {
+    radiusScale = d3.scaleLinear().domain([0, maxSpecies]).range([0, rMax]);
+  } else {
+    radiusScale = d3.scaleLog()
+      .domain([Math.max(1, minSpecies), Math.max(maxSpecies, 10)])
+      .range([rMin, rMax])
+      .clamp(true);
+  }
+
+  function radiusFor(n) {
+    if (data.scale === "linear") return Math.max(rMin, radiusScale(n));
+    return n <= 0 ? rMin : radiusScale(Math.max(1, n));
+  }
+
+  // Draw rings outermost-first so smaller rings paint on top.
+  const ordered = rings.slice().reverse();
+
+  const g = svg.append("g").attr("transform", `translate(${cx},${cy})`);
+
+  ordered.forEach(d => {
+    const r = radiusFor(d.named_species);
+    const total = Math.max(d.named_species, 1);
+    const asmFrac = d.species_with_assembly / total;
+    const annFrac = d.species_with_annotation / total;
+    const ringWidth = 18;
+
+    // Bare base ring (full circle stroke)
+    g.append("circle")
+      .attr("r", r)
+      .attr("class", "ring-bare");
+
+    // Assembly wedge as donut arc
+    if (asmFrac > 0) {
+      const arc = d3.arc()
+        .innerRadius(r - ringWidth / 2)
+        .outerRadius(r + ringWidth / 2)
+        .startAngle(0)
+        .endAngle(2 * Math.PI * asmFrac);
+      g.append("path")
+        .attr("d", arc())
+        .attr("class", "ring-asm");
+    }
+
+    // Annotation sub-arc on top
+    if (annFrac > 0) {
+      const arc = d3.arc()
+        .innerRadius(r - ringWidth / 2)
+        .outerRadius(r + ringWidth / 2)
+        .startAngle(0)
+        .endAngle(2 * Math.PI * annFrac);
+      g.append("path")
+        .attr("d", arc())
+        .attr("class", "ring-ann");
+    }
+
+    // Label outside the ring at 12 o'clock-ish
+    g.append("text")
+      .attr("class", "label")
+      .attr("x", 0)
+      .attr("y", -r - ringWidth / 2 - 4)
+      .attr("text-anchor", "middle")
+      .text(`${d.rank}: ${d.name} (n=${d.named_species.toLocaleString()})`);
+
+    // Invisible hit ring for tooltip
+    g.append("circle")
+      .attr("r", r)
+      .attr("fill", "none")
+      .attr("stroke", "transparent")
+      .attr("stroke-width", ringWidth + 6)
+      .attr("pointer-events", "stroke")
+      .on("mousemove", (event) => {
+        tip.style("display", "block")
+          .style("left", (event.pageX + 14) + "px")
+          .style("top", (event.pageY + 12) + "px")
+          .html(renderTip(d));
+      })
+      .on("mouseleave", () => tip.style("display", "none"));
+  });
+
+  // Horizontal axis showing radius ↔ named-species mapping
+  const axisY = cy + rMax + 60;
+  const axisG = svg.append("g")
+    .attr("class", "axis")
+    .attr("transform", `translate(${cx - rMax},${axisY})`);
+
+  const xScale = (data.scale === "linear")
+    ? d3.scaleLinear().domain([0, maxSpecies]).range([0, rMax * 2])
+    : d3.scaleLog().domain([Math.max(1, minSpecies), Math.max(maxSpecies, 10)])
+        .range([0, rMax * 2]);
+
+  axisG.call(d3.axisBottom(xScale).ticks(6, "~s"));
+  svg.append("text")
+    .attr("class", "axis")
+    .attr("x", cx).attr("y", axisY + 36)
+    .attr("text-anchor", "middle")
+    .text("named species in clade (" + data.scale + " scale)");
+
+  function renderTip(d) {
+    const pct = (a, b) => b > 0 ? (100 * a / b).toFixed(1) + "%" : "n/a";
+    return `<b>${d.name}</b> &nbsp;<span style="color:#888">[${d.rank}, taxid ${d.taxid}]</span>
+      <dl>
+        <dt>named species</dt><dd>${d.named_species.toLocaleString()}</dd>
+        <dt>with assembly</dt><dd>${d.species_with_assembly.toLocaleString()} (${pct(d.species_with_assembly, d.named_species)})</dd>
+        <dt>with annotation</dt><dd>${d.species_with_annotation.toLocaleString()} (${pct(d.species_with_annotation, d.named_species)})</dd>
+        <dt>total assemblies</dt><dd>${d.total_assemblies.toLocaleString()}</dd>
+        <dt>total annotations</dt><dd>${d.total_annotations.toLocaleString()}</dd>
+      </dl>`;
+  }
+})();
+</script>
+</body>
+</html>

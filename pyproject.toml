@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "taxonview"
+version = "0.1.0"
+description = "Visualise genomic resources available across the taxonomic hierarchy of a focus species."
+requires-python = ">=3.11"
+dependencies = [
+    "ete3==3.1.3",
+    "jinja2>=3.1",
+    "six",
+    "numpy",
+    "lxml",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+taxonview = "taxonview.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+taxonview = ["templates/*.html.j2", "templates/*.js"]
