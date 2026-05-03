@@ -37,9 +37,6 @@
 <body>
 
 <h1>{{ title }}</h1>
-<p class="sub">Concentric circles, innermost = species, outermost = class.
-Circle size is proportional to number of named species in the taxon.
-Light wedge = species with at least one assembly; dark sub-arc = species with at least one annotation.</p>
 
 <div class="legend">
   <span><span class="swatch" style="background:#74a9cf"></span>species with assembly</span>
@@ -57,7 +54,7 @@ Light wedge = species with at least one assembly; dark sub-arc = species with at
   const data = JSON.parse(document.getElementById("data").textContent);
   const rings = data.rings; // innermost first
   const W = 780, H = 780;
-  const cx = W / 2, cy = H / 2 - 20;
+  const cx = W / 2, cy = H / 2;
   const rMin = 24, rMax = 320;
 
   const svg = d3.select("#viz");
@@ -146,23 +143,18 @@ Light wedge = species with at least one assembly; dark sub-arc = species with at
       .on("mouseleave", () => tip.style("display", "none"));
   });
 
-  // Horizontal axis showing radius ↔ named-species mapping
-  const axisY = cy + rMax + 60;
+  // Horizontal axis starting at the center of the circles, going right.
+  // Tick positions match the radii used to draw the rings.
+  const xScale = (data.scale === "linear")
+    ? d3.scaleLinear().domain([0, maxSpecies]).range([0, rMax])
+    : d3.scaleLog().domain([Math.max(1, minSpecies), Math.max(maxSpecies, 10)])
+        .range([rMin, rMax]);
+
   const axisG = svg.append("g")
     .attr("class", "axis")
-    .attr("transform", `translate(${cx - rMax},${axisY})`);
-
-  const xScale = (data.scale === "linear")
-    ? d3.scaleLinear().domain([0, maxSpecies]).range([0, rMax * 2])
-    : d3.scaleLog().domain([Math.max(1, minSpecies), Math.max(maxSpecies, 10)])
-        .range([0, rMax * 2]);
+    .attr("transform", `translate(${cx},${cy})`);
 
   axisG.call(d3.axisBottom(xScale).ticks(6, "~s"));
-  svg.append("text")
-    .attr("class", "axis")
-    .attr("x", cx).attr("y", axisY + 36)
-    .attr("text-anchor", "middle")
-    .text("named species in clade (" + data.scale + " scale)");
 
   function renderTip(d) {
     const pct = (a, b) => b > 0 ? (100 * a / b).toFixed(1) + "%" : "n/a";
